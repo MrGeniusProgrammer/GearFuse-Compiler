@@ -109,15 +109,17 @@ public:
   std::string value;
   Type type;
 
-  Token()
-  {
-    value = "\0";
-    type = Type::NOT_FOUND;
-    start_line_position = 1;
-    end_line_position = 1;
-    start_column_position = 0;
-    end_column_position = 0;
-  }
+  Token(std::string value = "\0",
+        Type type = Type::NOT_FOUND,
+        unsigned long long start_line_position = 1,
+        unsigned long long end_line_position = 1,
+        unsigned long long start_column_position = 0,
+        unsigned long long end_column_position = 0) : value(value),
+                                                      type(type),
+                                                      start_line_position(start_line_position),
+                                                      end_line_position(end_line_position),
+                                                      start_column_position(start_column_position),
+                                                      end_column_position(end_column_position){};
 
   ~Token() = default;
 

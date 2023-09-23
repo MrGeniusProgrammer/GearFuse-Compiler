@@ -20,11 +20,11 @@ class ASTUnaryExpression;
 class ASTBlock;
 class ASTProgramBlock;
 class ASTCallExpression;
-class ASTNumberExpression;
+class ASTExpression;
 class ASTStringExpression;
 class ASTCharExpression;
-class ASTIntNumberExpression;
-class ASTFloatNumberExpression;
+class ASTIntExpression;
+class ASTFloatExpression;
 class ASTIdentifierExpression;
 class ASTFucntion;
 class ASTPrototype;
@@ -54,11 +54,11 @@ public:
     ASTBlockID,
     ASTProgramBlockID,
     ASTCallExpressionID,
-    ASTNumberExpressionID,
+    ASTExpressionID,
     ASTStringExpressionID,
     ASTCharExpressionID,
-    ASTIntNumberExpressionID,
-    ASTFloatNumberExpressionID,
+    ASTIntExpressionID,
+    ASTFloatExpressionID,
     ASTIdentifierExpressionID,
     ASTFucntionID,
     ASTPrototypeID,
@@ -77,25 +77,25 @@ public:
     ASTElseIfExpressionID,
   };
 
-protected:
-  enum ASTNodeID ID;
   std::string show_kind;
   std::string show_value;
-  explicit ASTNode(enum ASTNodeID ID, std::string show_kind = "", std::string show_value = "") : ID(ID), show_kind(show_kind), show_value(show_value){};
-  virtual ~ASTNode() = default;
+
+protected:
+  enum ASTNodeID ID;
 
 public:
+  ASTNode(enum ASTNodeID ID, std::string show_kind = "", std::string show_value = "") : ID(ID), show_kind(show_kind), show_value(show_value){};
+  virtual ~ASTNode() = default;
   virtual std::vector<ASTNode *> getChildrenShow() = 0;
   virtual llvm::Value *codegen() = 0;
   enum ASTNodeID getASTNodeID() { return ID; }
 };
 
-/*
 class ASTBlock : public ASTNode
 {
 protected:
   std::vector<std::unique_ptr<ASTNode>> body;
-  std::map<std::string, ASTVariableExpression *> named_variables;
+  // std::map<std::string, ASTVariableExpression *> named_variables;
 
 public:
   ASTBlock(std::vector<std::unique_ptr<ASTNode>> body, std::string show_kind) : body(std::move(body)), ASTNode(ASTNodeID::ASTBlockID, show_kind){};
@@ -122,7 +122,7 @@ public:
 
   virtual llvm::Value *codegen() override
   {
-    global_block_stack->push_block(this);
+    // global_block_stack->push_block(this);
 
     llvm::Value *FnIR;
     for (int i = 0; i < body.size(); i++)
@@ -130,24 +130,13 @@ public:
       FnIR = body[i]->codegen();
     }
 
-    global_block_stack->pop_block();
+    // global_block_stack->pop_block();
 
     return FnIR;
   }
-
-  void new_named_variable(ASTVariableExpression *name)
-  {
-    named_variables[name->get_name()] = name;
-    current_variable = name;
-  }
-
-  ASTVariableExpression *named_variable(std::string name)
-  {
-    current_variable = named_variables[name];
-    return current_variable;
-  }
 };
 
+/*
 class BlockStack
 {
 private:
@@ -195,10 +184,11 @@ class ASTExpression : public ASTNode
 {
 protected:
   Type *type;
-  explicit ASTExpression(enum ASTNodeID ID, std::string show_kind, std::string show_value = "") : ASTNode(ID, show_kind, show_value){};
-  explicit ASTExpression() : ASTNode(ASTNodeID::ASTExpressionID){};
 
 public:
+  ASTExpression(enum ASTNodeID ID, std::string show_kind, std::string show_value = "") : ASTNode(ID, show_kind, show_value){};
+  ASTExpression() : ASTNode(ASTNodeID::ASTExpressionID){};
+
   Type *getType() { return type; };
   virtual void setType(Type *type) { this->type = type; }
 };
@@ -391,7 +381,6 @@ private:
 public:
   ASTStringExpression(Token token);
   llvm::Value *codegen() override;
-  Type getType() override;
 };
 
 class ASTCharExpression : public ASTExpression
@@ -402,7 +391,6 @@ private:
 public:
   ASTCharExpression(Token token);
   llvm::Value *codegen() override;
-  Type getType() override;
 };
 
 class ASTIdentifierExpression : public ASTExpression
@@ -413,33 +401,34 @@ private:
 public:
   ASTIdentifierExpression(Token token);
   llvm::Value *codegen() override;
-  Type getType() override;
 };
+*/
 
-class ASTNumberExpression : public ASTExpression
+class ASTIntExpression : public ASTExpression
 {
-protected:
+private:
   Token token;
+
+public:
+  ASTIntExpression(Token token) : ASTExpression(ASTNodeID::ASTIntExpressionID, "IntExpression", token.value), token(token)
+  {
+    setType(Type::getInteger32Ty());
+  }
 };
 
-class ASTIntNumberExpression : public ASTNumberExpression
+class ASTFloatExpression : public ASTExpression
 {
 private:
+  Token token;
+
 public:
-  ASTIntNumberExpression(Token token);
-  llvm::Value *codegen() override;
-  Type getType() override;
+  ASTFloatExpression(Token token) : ASTExpression(ASTNodeID::ASTFloatExpressionID, "FloatExpression", token.value), token(token)
+  {
+    setType(Type::getFloat32Ty());
+  }
 };
 
-class ASTFloatNumberExpression : public ASTNumberExpression
-{
-private:
-public:
-  ASTFloatNumberExpression(Token token);
-  llvm::Value *codegen() override;
-  Type getType() override;
-};
-
+/*
 class ASTFunction : public ASTNode
 {
 private:
@@ -451,7 +440,6 @@ public:
   std::vector<ASTNode *> getChildrenShow() override;
   virtual llvm::Function *codegen() override;
   std::string get_name();
-  Type getType() override;
 };
 
 class ASTPrototype : public ASTNode
@@ -469,7 +457,6 @@ public:
   std::string get_name();
   llvm::Type *get_variable_llvm_type_at(int i);
   ASTVariableExpression *get_variable_at(int i);
-  Type getType() override;
 };
 
 class ASTReturnStatement : public ASTStatement
@@ -592,21 +579,37 @@ public:
   llvm::BasicBlock *codegen(llvm::BasicBlock *MergeBB, llvm::BasicBlock *ElseBB = nullptr);
 };
 
-class AST
-{
-private:
-  std::unique_ptr<ASTProgramBlock> root;
-
-public:
-  AST();
-  ~AST();
-  void push_back(std::unique_ptr<ASTNode> node);
-  void show();
-  void codegen();
-};
-
 ASTVariableExpression *current_variable;
 std::unique_ptr<AST> global_tree(new AST());
 std::unique_ptr<BlockStack> global_block_stack(new BlockStack());
 std::map<std::string, ASTFunction *> global_functions;
+
+class AST
+{
+private:
+  std::unique_ptr<ASTBlock> root;
+
+public:
+  AST::AST()
+  {
+    root.reset(new ASTBlock());
+  }
+
+  void AST::push_back(std::unique_ptr<ASTNode> node)
+  {
+    root->push_back(std::move(node));
+  }
+
+  void AST::show()
+  {
+    if (root != nullptr)
+    {
+      pretty_print(&(*root));
+    }
+    else
+    {
+      printf("No Tree to Show\n");
+    }
+  }
+};
 */
