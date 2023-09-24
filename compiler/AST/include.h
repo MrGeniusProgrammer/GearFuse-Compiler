@@ -136,7 +136,6 @@ public:
   }
 };
 
-/*
 class BlockStack
 {
 private:
@@ -178,7 +177,6 @@ class Statement : public ASTNode
 public:
   virtual ~Statement() = 0;
 };
-*/
 
 class ASTExpression : public ASTNode
 {
@@ -193,7 +191,6 @@ public:
   virtual void setType(Type *type) { this->type = type; }
 };
 
-/*
 class ASTCallExpression : public ASTExpression
 {
 private:
@@ -250,7 +247,6 @@ public:
     return children;
   }
 };
-*/
 
 class ASTBinaryExpression : public ASTExpression
 {
@@ -360,7 +356,6 @@ public:
   }
 };
 
-/*
 class ASTUnaryExpression : public ASTExpression
 {
 private:
@@ -402,7 +397,6 @@ public:
   ASTIdentifierExpression(Token token);
   llvm::Value *codegen() override;
 };
-*/
 
 class ASTIntExpression : public ASTExpression
 {
@@ -428,7 +422,6 @@ public:
   }
 };
 
-/*
 class ASTFunction : public ASTNode
 {
 private:
@@ -612,4 +605,3 @@ public:
     }
   }
 };
-*/
