@@ -129,7 +129,7 @@ public:
   ASTExpression(ASTNodeID ID, std::string showKind = "", std::string showValue = "") : ASTNode(ID, showKind, showValue){};
   ASTExpression(Type *type, ASTNodeID ID, std::string showKind = "", std::string showValue = "") : type(type), ASTNode(ID, showKind, showValue){};
   Type *getType() { return type; }
-  void setType(Type *type) { this->type = type; }
+  virtual void setType(Type *type) { this->type = type; }
   virtual void evaluateType(){};
 };
 
@@ -179,9 +179,24 @@ public:
 
   void evaluateType() override
   {
-    setType(getTypeFromTwoTypes(leftOperand->getType(), rightOperand->getType()));
-    leftOperand->setType(getType());
-    rightOperand->setType(getType());
+    leftOperand->evaluateType();
+    rightOperand->evaluateType();
+
+    if (leftOperand->getType()->isIntegerTy() && rightOperand->getType()->isIntegerTy() && operatorToken.type == Token::Type::BACKSLASH)
+    {
+      setType(Type::getFloat64Ty());
+    }
+    else
+    {
+      setType(getTypeFromTwoTypes(leftOperand->getType(), rightOperand->getType()));
+    }
+  }
+
+  void setType(Type *type) override
+  {
+    leftOperand->setType(type);
+    rightOperand->setType(type);
+    this->type = type;
   }
 
   llvm::Value *codegen() override
@@ -241,10 +256,6 @@ public:
         return builder->CreateSub(leftValue, rightValue, "sub_tmp");
       case Token::Type::ASTERISK:
         return builder->CreateMul(leftValue, rightValue, "mul_tmp");
-      case Token::Type::BACKSLASH:
-        leftValue = builder->CreateSIToFP(leftValue, llvm::Type::getFloatTy(*context), "sint_to_float_tmp");
-        rightValue = builder->CreateSIToFP(rightValue, llvm::Type::getFloatTy(*context), "sint_to_float_tmp");
-        return builder->CreateFDiv(leftValue, rightValue, "div_tmp");
       case Token::Type::PERCENT:
         return builder->CreateSRem(leftValue, rightValue, "rem_tmp");
       case Token::Type::DOUBLE_AMPERSAND:
@@ -263,6 +274,65 @@ public:
         return builder->CreateICmpSLE(leftValue, rightValue, "lower_than_or_equal_to_tmp");
       case Token::Type::RIGHT_ANGULAR_BRACKET_EQUALS:
         return builder->CreateICmpSGE(leftValue, rightValue, "greater_than_or_equal_to_tmp");
+      default:
+        return nullptr;
+      }
+    }
+
+    return nullptr;
+  }
+};
+
+class ASTUnaryExpression : public ASTExpression
+{
+private:
+  Token operatorToken;
+  std::unique_ptr<ASTExpression> operand;
+
+public:
+  ASTUnaryExpression(Token operatorToken,
+                     std::unique_ptr<ASTExpression> operand) : operatorToken(operatorToken),
+                                                               operand(std::move(operand)),
+                                                               ASTExpression(ASTNode::ASTUnaryExpressionID, "UnaryExpression", operatorToken.value){};
+  std::vector<ASTNode *> getChildrenShow() override
+  {
+    std::vector<ASTNode *> children;
+    children.push_back(&(*operand));
+    return std::move(children);
+  }
+
+  void setType(Type *type) override
+  {
+    operand->setType(type);
+    this->type = type;
+  }
+
+  void evaluateType() override
+  {
+    operand->evaluateType();
+    setType(operand->getType());
+  }
+
+  llvm::Value *codegen() override
+  {
+    Type *operandType = operand->getType();
+    llvm::Value *operandValue = operand->codegen();
+
+    if (!operandValue)
+    {
+      return nullptr;
+    }
+
+    if (getType()->isNumberTy())
+    {
+      switch (operatorToken.type)
+      {
+      case Token::Type::PLUS:
+        return operandValue;
+      case Token::Type::HYPHEN:
+        return builder->CreateNeg(operandValue, "negative_tmp");
+      case Token::Type::EXCLAMATION:
+        return builder->CreateNot(operandValue, "not_tmp");
       default:
         return nullptr;
       }
@@ -306,17 +376,18 @@ int main()
   // testTys.push_back(type2);
   // testTys.push_back(type3);
   // TestTypes(std::move(testTys));
-  Token token1("1", Token::Type::LITERAL_INT);
-  std::unique_ptr<ASTNumberExpression> expr1(new ASTNumberExpression(token1, Type::getInteger32Ty()));
 
-  Token token2("2.10", Token::Type::LITERAL_FLOAT);
-  std::unique_ptr<ASTNumberExpression> expr2(new ASTNumberExpression(token2, Type::getInteger32Ty()));
+  std::unique_ptr<ASTNumberExpression> intExpr1(new ASTNumberExpression(Token("4", Token::Type::LITERAL_INT), Type::getInteger32Ty()));
+  std::unique_ptr<ASTNumberExpression> intExpr2(new ASTNumberExpression(Token("2", Token::Type::LITERAL_INT), Type::getInteger32Ty()));
+  std::unique_ptr<ASTNumberExpression> intExpr3(new ASTNumberExpression(Token("2", Token::Type::LITERAL_INT), Type::getInteger32Ty()));
+  std::unique_ptr<ASTUnaryExpression> unaryExpr1(new ASTUnaryExpression(Token("-", Token::Type::HYPHEN), std::move(intExpr3)));
 
-  Token token3("*", Token::Type::ASTERISK);
-  ASTBinaryExpression *expr3(new ASTBinaryExpression(token3, std::move(expr1), std::move(expr2)));
-  expr3->evaluateType();
-  PrettyPrint(expr3);
-  llvm::Value *value = expr3->codegen();
+  std::unique_ptr<ASTBinaryExpression> binaryExpr1(new ASTBinaryExpression(Token("+", Token::Type::PLUS), std::move(intExpr1), std::move(intExpr2)));
+  std::unique_ptr<ASTBinaryExpression> binaryExpr2(new ASTBinaryExpression(Token("*", Token::Type::ASTERISK), std::move(unaryExpr1), std::move(binaryExpr1)));
+
+  binaryExpr2->evaluateType();
+  PrettyPrint(&(*binaryExpr2));
+  llvm::Value *value = binaryExpr2->codegen();
   value->print(llvm::outs());
 
   return 1;
